@@ -1,0 +1,121 @@
+// LeadFinder Prisma schema.
+//
+// NOTE: SQLite (the local dev default) does not support native enum types or
+// scalar list fields, so status-like fields are plain strings validated in
+// application code (see lib/types.ts), and array fields (emails, place types)
+// are stored as JSON. This keeps the schema portable to Postgres later
+// without a migration rewrite — swap `provider = "sqlite"` for `"postgresql"`
+// and point DATABASE_URL at your Postgres instance.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Search {
+  id             String   @id @default(cuid())
+  keyword        String
+  location       String
+  lat            Float?
+  lng            Float?
+  radius         Float // meters
+  maxLeads       Int
+  searchMode     String   @default("keyword") // category | keyword
+  language       String? // Places API languageCode, e.g. "en", "hi", "es"
+  openClosed     String   @default("any") // any | open | closed
+  filters        String // JSON-encoded SearchFilters snapshot used at run time
+  fields         String   @default("[\"phone\",\"website\",\"rating\",\"hours\",\"priceLevel\"]") // JSON-encoded OptionalPlaceField[] used at run time
+  leadCount      Int      @default(0)
+  costEstimate   Float    @default(0)
+  actualCost     Float    @default(0)
+  jobStatus      String   @default("pending") // pending | running | paused | completed | failed | cancelled
+  jobError       String?
+  jobProgress    Int      @default(0) // 0-100
+  durationMs     Int?
+  successCount   Int      @default(0)
+  failedCount    Int      @default(0)
+  duplicateCount Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  leads Lead[]
+
+  @@index([createdAt])
+}
+
+model Lead {
+  id             String  @id @default(cuid())
+  placeId        String  @unique
+  name           String
+  category       String // JSON-encoded string[] of Google place types
+  primaryType    String?
+  address        String?
+  phone          String?
+  website        String?
+  rating         Float?
+  reviewCount    Int?
+  businessStatus String? // OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY
+  priceLevel     String?
+  lat            Float?
+  lng            Float?
+  openingHours   String? // JSON-encoded weekday text array
+
+  emails               String    @default("[]") // JSON-encoded string[]
+  emailVerified        String? // valid | invalid | unknown (syntax + MX check only)
+  socialLinks          String    @default("{}") // JSON-encoded SocialLinks
+  bookingLink          String?
+  menuLink             String?
+  companyDescription   String?
+  techStack            String    @default("[]") // JSON-encoded string[] (CMS, analytics, pixels, chat widgets)
+  sslValid             Boolean?
+  sslIssuer            String?
+  sslExpiresAt         DateTime?
+  businessSizeEstimate String? // small | medium | large | enterprise (heuristic, not authoritative)
+  enrichmentStatus     String    @default("pending") // pending | running | found | not_found | failed
+  enrichmentError      String?
+  enrichedAt           DateTime?
+
+  status      String   @default("new") // new | contacted | interested | qualified | won | lost
+  notes       String?
+  tags        String   @default("[]") // JSON-encoded string[]
+  favourite   Boolean  @default(false)
+  archived    Boolean  @default(false)
+  assignedTo  String?
+  contactName String? // e.g. owner/doctor's name — not scraped, entered manually for message personalization
+  hasWhatsapp Boolean? // null = unknown/unconfirmed, true/false = manually confirmed by the user
+
+  searchId String?
+  search   Search? @relation(fields: [searchId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([searchId])
+  @@index([status])
+  @@index([enrichmentStatus])
+  @@index([rating])
+  @@index([reviewCount])
+  @@index([favourite])
+  @@index([archived])
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  body      String // contains [Name]/[Business Name]/etc. placeholders, see lib/message-template.ts
+  isDefault Boolean  @default(false) // only one row may be true at a time — enforced in app/api/templates/[id]/route.ts
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Simple key-value store for settings entered via the UI (e.g. the Google
+// Places API key), so self-hosters don't have to edit .env files. See
+// lib/settings.ts — .env values still work as a fallback when unset here.
+model Setting {
+  key   String @id
+  value String
+}
