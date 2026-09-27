@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
+import { ApiKeyGuideDialog } from "@/components/api-key-guide-dialog";
 
 export function SettingsDialog() {
   const [open, setOpen] = React.useState(false);
@@ -68,9 +69,12 @@ export function SettingsDialog() {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="places-api-key" className="text-xs text-muted-foreground">
-              Google Places API key
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="places-api-key" className="text-xs text-muted-foreground">
+                Google Places API key
+              </Label>
+              <ApiKeyGuideDialog />
+            </div>
             <Input
               id="places-api-key"
               type="password"
